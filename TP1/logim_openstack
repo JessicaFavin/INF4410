@@ -1,0 +1,4 @@
+INF4410-10 Cv6J94wsn
+scp -ri cloud.key src/ca/polymtl/inf4410/tp1/server/Server.java ubuntu@132.207.12.251:~/src/ca/polymtl/inf4410/tp1/server/
+
+nano server -> adresse flottante serveur distant
