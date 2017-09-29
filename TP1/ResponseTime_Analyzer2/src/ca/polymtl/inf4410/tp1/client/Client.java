@@ -25,9 +25,6 @@ import java.nio.file.StandardCopyOption;
 import ca.polymtl.inf4410.tp1.shared.ServerInterface;
 
 public class Client {
-
-	static String ip = "132.207.12.251";
-
 	public static void main(String[] args) {
 		try{
 			String func = "";
@@ -99,7 +96,7 @@ public class Client {
 			System.setSecurityManager(new SecurityManager());
 		}
 
-		server = loadServerStub(ip);
+		server = loadServerStub("132.207.12.251");
 		//server = loadServerStub("127.0.0.1");
 	}
 

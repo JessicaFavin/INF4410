@@ -19,7 +19,6 @@ import java.util.HashMap;
 import java.io.PrintWriter;
 import java.io.FileReader;
 import java.io.BufferedReader;
-import java.io.FileOutputStream;
 
 
 import ca.polymtl.inf4410.tp1.shared.ServerInterface;
@@ -129,32 +128,33 @@ public class Server implements ServerInterface {
 	}
 
 	@Override
-	public byte[] get(String nom, byte[] checksum) throws RemoteException
+	public File get(String nom, String checksum) throws RemoteException
 	{
 		File f = new File("./files/"+nom);
-		byte[] res = null;
 		if(f.exists()){
-			byte[] md5 = getMD5(nom);
-			if(checksum==null || !MessageDigest.isEqual(md5, checksum)){
+			String md5 = getMD5(nom);
+			System.out.println("Server : "+md5);
+			if(checksum.equals("-1") || !md5.equals(checksum)){
 				try{
-					res= Files.readAllBytes(Paths.get("./files/"+nom));
+					BufferedReader br = new BufferedReader(new FileReader(f));
+					System.out.println(br.readLine());
+					br.close();
 				} catch(Exception e) {
 					e.printStackTrace();
 				}
+				return f;
 			}
 		}
 
-		return res;
+		return null;
 		
 	}
 
-
-	private byte[] getMD5(String nom){
-		byte[] res = null;
+	private String getMD5(String nom) throws RemoteException{
+		String res = "";
 		try{
 			MessageDigest md = MessageDigest.getInstance("MD5");
-			md.update(Files.readAllBytes(Paths.get("./files/"+nom)));
-			res = md.digest();
+			res = md.digest(Files.readAllBytes(Paths.get("./files/"+nom))).toString();
 		} catch(Exception e){
 			e.printStackTrace();
 		}
@@ -170,28 +170,21 @@ public class Server implements ServerInterface {
 
 	@Override
 	public String lock(String nom, String clientid) throws RemoteException{
-		String idLock = "";
-		if(!map.containsValue(clientid)){
-			idLock = map.get(nom);
-			if(idLock!=null && idLock.equals("-1")){
-				map.put(nom, clientid);
-			}
-		} else {
-			idLock = "-2";
+		String idLock = map.get(nom);
+		if(idLock.equals("-1")){
+			map.put(nom, clientid);
 		}
 		return idLock;
 	}
 
 	@Override
-	public boolean push(String nom, byte[] contenu, String clientid) throws RemoteException {
+	public boolean push(String nom, File contenu, String clientid) throws RemoteException {
 
 		boolean b = false;
 		try{
 			String idLock = map.get(nom);
 			if(idLock.equals(clientid)){
-				FileOutputStream fos = new FileOutputStream("./files/"+nom);
-				fos.write(contenu);
-				fos.close();
+				contenu.createNewFile();
 				b = true;
 				map.put(nom,"-1");
 			}
