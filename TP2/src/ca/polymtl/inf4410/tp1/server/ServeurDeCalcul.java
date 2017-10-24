@@ -11,27 +11,24 @@ import java.util.Random;
 
 import ca.polymtl.inf4410.tp1.shared.ServerInterface;
 
-public class ServeurDeCalcul implements ServerInterface{
+public class ServeurDeCalcul implements ServerInterface {
 
 	private int instMax;
-	private int opPossible;
 	private Double repErronee;
 
 	public ServeurDeCalcul(int q) {
 		super();
 		instMax = q;
-		opPossible = instMax;
 		repErronee = 0.0;
 	}
 
 	public ServeurDeCalcul(int q, Double repErronee) {
 		super();
 		instMax = q;
-		opPossible = instMax;
 		this.repErronee = repErronee;
 	}
 
-	private void run() {
+	private void init() {
 		if (System.getSecurityManager() == null) {
 			System.setSecurityManager(new SecurityManager());
 		}
@@ -53,33 +50,36 @@ public class ServeurDeCalcul implements ServerInterface{
 		}
 	}
 
-	@Override
-	public int calcul(String[] instructions) throws RemoteException
-	{
-		int instSoumise = instructions.length;
-		if(instructions.length>opPossible){
+	@Override 
+	public boolean demandeCalcul(int instSoumise) throws RemoteException {
+		if(instSoumise>instMax){
 			int tauxRefus = ((instSoumise-instMax)/(5*instMax))*100;
 			Random randomGenerator = new Random();
 			//génère un chiffre au hasard entre 0 et 100 inclus.
       		int randomInt = randomGenerator.nextInt(101);
+      		System.out.println("taux de refus : "+tauxRefus+" random : "+randomInt);
       		if(randomInt < tauxRefus){
-				return -1;
+				return false;
       		}
 		}
+		return true;
+	}
 
-		opPossible -= instSoumise;
+	@Override
+	public int calcul(String[] instructions) throws RemoteException
+	{
 		int res = 0;
 		for(String ins : instructions) {
 			String[] part = ins.split(" ");
 			switch(part[0]){
 				case "prime" :
-					res += Operations.prime(Integer.parseInt(part[1]))%4000;
+					res += Operations.prime(Integer.parseInt(part[1]));
 				break;
 				case "pell" :
-					res += Operations.pell(Integer.parseInt(part[1]))%4000;
+					res += Operations.pell(Integer.parseInt(part[1]));
 				break;
 			}
-			opPossible++;
+			res = res%4000;
 		}
 
 		return res;
@@ -88,7 +88,7 @@ public class ServeurDeCalcul implements ServerInterface{
 
 	public static void main(String[] args) {
 		ServeurDeCalcul server = new ServeurDeCalcul(Integer.parseInt(args[0]), Double.parseDouble(args[1]));
-		server.run();
+		server.init();
 	}
 
 }

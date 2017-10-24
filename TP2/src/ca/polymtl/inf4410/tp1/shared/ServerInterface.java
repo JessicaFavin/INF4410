@@ -8,4 +8,5 @@ import java.io.FileInputStream;
 
 public interface ServerInterface extends Remote {
 	public int calcul(String[] instructions) throws RemoteException;
+	public boolean demandeCalcul(int instSoumise) throws RemoteException;
 }
