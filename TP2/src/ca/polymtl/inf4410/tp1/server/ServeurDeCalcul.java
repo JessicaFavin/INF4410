@@ -53,11 +53,10 @@ public class ServeurDeCalcul implements ServerInterface {
 	@Override 
 	public boolean demandeCalcul(int instSoumise) throws RemoteException {
 		if(instSoumise>instMax){
-			int tauxRefus = ((instSoumise-instMax)/(5*instMax))*100;
+			double tauxRefus = ((double)(instSoumise-instMax)/(5.0*(double)instMax))*100.0;
 			Random randomGenerator = new Random();
 			//génère un chiffre au hasard entre 0 et 100 inclus.
-      		int randomInt = randomGenerator.nextInt(101);
-      		System.out.println("taux de refus : "+tauxRefus+" random : "+randomInt);
+      		double randomInt = randomGenerator.nextInt(101);
       		if(randomInt < tauxRefus){
 				return false;
       		}
@@ -80,6 +79,14 @@ public class ServeurDeCalcul implements ServerInterface {
 				break;
 			}
 			res = res%4000;
+		}
+		if(repErronee!=0.0){
+			Random randomGenerator = new Random();
+			//génère un chiffre au hasard entre 0 et 100 inclus.
+      		double randomInt = randomGenerator.nextInt(101);
+      		if(randomInt < repErronee){
+				res++;
+      		}
 		}
 
 		return res;
