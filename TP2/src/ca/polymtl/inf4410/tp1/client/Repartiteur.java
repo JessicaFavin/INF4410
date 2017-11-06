@@ -16,6 +16,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Random;
 
 import ca.polymtl.inf4410.tp1.shared.ServerInterface;
 
@@ -28,7 +29,7 @@ public class Repartiteur {
 	private int[] capaciteServeur;
 	private ArrayList<String>[] dataEnvoye;
 	private boolean[] serveurCrashe;
-	private int[][] resultMalicious;
+	private int[] resultMalicious;
 	private Stack<Integer> idDataLibre;
 
 
@@ -59,7 +60,7 @@ public class Repartiteur {
 				resultMalicious = new int[nServeur];
 				for(int i=0; i<nServeur; i++){
 					dataEnvoye[i] = new ArrayList<String>();
-					resultMalicious[i] = new int[2];
+					resultMalicious[i] = -1;
 				}
 				serveurCrashe = new boolean[nServeur];
 				for(int i = 0; i<nServeur; i ++){
@@ -112,12 +113,14 @@ public class Repartiteur {
 								for(int j=0; j<dataSize; j++){
 									data[j] = listeOperations.pop();
 								}
-								//lancement du thread de calcul
-								Calcul thread = new Calcul(listeServeur[i], data);
-								future[i] = executor.submit(thread);
+								
 								for(int j=0; j<dataEnvoye[i].size(); j++){
 									dataEnvoye[i].add(data[j]);
 								}
+								System.out.println("Envoi "+i+" "+ dataSize);
+								//lancement du thread de calcul
+								Calcul thread = new Calcul(listeServeur[i], data);
+								future[i] = executor.submit(thread);
 							} else {
 								//else diminuer la datasize
 								capaciteServeur[i]--;
@@ -127,6 +130,7 @@ public class Repartiteur {
 							if(future[i] != null){
 								res = (res+(Integer)future[i].get())%4000;
 								future[i] = null;
+								System.out.println("Resultat "+i);
 							}
 						} catch (Exception e) {
 							//on rempile les datas qui tournaient lors du crash
@@ -157,112 +161,123 @@ public class Repartiteur {
 		try{
 			int id = 0;
 			int res = 0;
-			int idDataToSend = -1;
+			Stack<Integer> idDataToSend = new Stack<Integer>();
 			ExecutorService executor = Executors.newFixedThreadPool(nServeur);
 			Future<Integer>[] future = new Future[nServeur];
 			long start = System.nanoTime();
 			int[] dataID = new int[nServeur];
 			idDataLibre = new Stack<Integer>();
+			for(int i=0;i<nServeur; i++){
+				idDataLibre.push(i);
+			}
 			while(!listeOperations.empty()){
+				
 
-
-				for(int i=0; i<listeServeur.length; i++){
-					int dataSize = Math.min(capaciteServeur[i], listeOperations.size());
-
-					if(!serveurCrashe[i] && (future[i] == null || future[i].isDone())){
+					for(int i=0; i<listeServeur.length; i++){
 						try{
-							//demande de calcul
-							if(listeServeur[i].demandeCalcul(dataSize)){
-								capaciteServeur[i]++;
+							int dataSize = Math.min(capaciteServeur[i], listeOperations.size());
 
-								//s'il n'y a pas de double de data à envoyer
-								if(idDataToSend==-1){
-									// création des sous instructions
-									String[] data = new String[dataSize];
-									for(int j=0; j<dataSize; j++){
-										data[j] = listeOperations.pop();
-									}
-									//lancement du thread de calcul
-									Calcul thread = new Calcul(listeServeur[i], data);
-									future[i] = executor.submit(thread);
-									//find id for data
-									id = findFreeDataId();
-									dataEnvoye[id] = new ArrayList<String>();
-									//sauvegarde des datas envoyées à l'id libre trouvé
-									for(int j=0; j<capaciteServeur[i]; j++){
-										dataEnvoye[id].add(data[j]);
-									}
-									//sauvegarde l'id pour qu'il soit envoyé à un autre serveur
-									idDataToSend = id;
-									dataID[i] = id;
-								} else {
-									dataID[i] = idDataToSend;
-									//send the data found in dataEnvoye[idDataToSend]
-									String[] data = new String[dataEnvoye[idDataToSend].size()];
-									data = dataEnvoye[idDataToSend].toArray(data);
-									//lancement du thread de calcul
-									Calcul thread = new Calcul(listeServeur[i], data);
-									future[i] = executor.submit(thread);
-									//ne pas renvoyer la data
-									idDataToSend = -1;
-								}
-							} else {
-								//else diminuer la datasize
-								capaciteServeur[i]--;
-							}
-							//recupération du résultat
-							if(future[i] != null){
-								resTmp = (Integer)future[i].get()
+							if(!serveurCrashe[i] && (future[i] == null || future[i].isDone())){
+							
+								//demande de calcul
+								if(listeServeur[i].demandeCalcul(dataSize)){
+									
 
-								future[i] = null;
-								//on récupère l'idData associée au serveur
-								id = dataID[i];
-								//on compare le résultat à celui ou ceux de la table resultMalicious
-								if(resultMalicious[id][0]!=-1){
-									if(resultMalicious[id][0]==res){
-										res = (res+resTmp)%4000;
-										// si le resultat est bon on libère les tables
-										//et on ajoute l'id a la stack
-									} else {
-										if(resultMalicious[id][1]!=-1){
-											if(resultMalicious[id][1]==res){
-												res = (res+resTmp)%4000;
-												// si le resultat est bon on libère les tables
-												//et on ajoute l'id a la stack
-											} else {
-												//aucune valeur n'est égale, on en remplace une au hasard
-												Random random = new Random();
-												boolean out = random.nextBoolean();
-												if(out)
-													resultMalicious[id][1] = res;
-												else
-													resultMalicious[id][0] = res;
-											}
+									//s'il n'y a pas de double de data à envoyer
+									if(idDataToSend.empty()){
+										if(!idDataLibre.isEmpty()){
+											//on renvoi le prochain id libre
+											id =  (int) idDataLibre.pop();
 										} else {
-											//on sauvegarde le resultat pour le prochain serveur
-											resultMalicious[id][1] = res;
+											System.out.println("Erreur! plus de place dans la table de data");
+											continue;
 										}
+
+										System.out.println("New data");
+										// création des sous instructions
+										String[] data = new String[dataSize];
+										for(int j=0; j<dataSize; j++){
+											data[j] = listeOperations.pop();
+										}
+										dataEnvoye[id].clear();
+										//sauvegarde des datas envoyées à l'id libre trouvé
+										for(int j=0; j<dataSize; j++){
+											dataEnvoye[id].add(data[j]);
+										}
+										
+										//sauvegarde l'id pour qu'il soit envoyé à un autre serveur
+										idDataToSend.push(id);
+										dataID[i] = id;
+										System.out.println("Data envoyée : "+id+" serveur "+i);
+
+										//lancement du thread de calcul
+										Calcul thread = new Calcul(listeServeur[i], data);
+										future[i] = executor.submit(thread);
+										
+									} else {
+										id = idDataToSend.pop();
+										dataID[i] = id;
+										//send the data found in dataEnvoye[id]
+										String[] data = new String[dataEnvoye[id].size()];
+										data = dataEnvoye[id].toArray(data);
+										//lancement du thread de calcul
+										Calcul thread = new Calcul(listeServeur[i], data);
+										future[i] = executor.submit(thread);
+
+										System.out.println("Data envoyée 2e round : "+id+" serveur "+i);
 									}
+									capaciteServeur[i]++;
 								} else {
-									//on sauvegarde le resultat pour le prochain serveur
-									resultMalicious[id][0] = res;
+									//else diminuer la datasize
+									capaciteServeur[i]--;
 								}
 
 
+								//recupération du résultat
+								if(future[i] != null){
+									Integer resTmp = (Integer)future[i].get()%4000;
 
+									future[i] = null;
+									//on récupère l'idData associée au serveur
+									id = dataID[i];
+									//on compare le résultat à celui ou ceux de la table resultMalicious
+									if(resultMalicious[id]!=-1){
+										System.out.println(resultMalicious[id]+" "+resTmp);
+										if(resultMalicious[id]==resTmp){
+											res = (res+resTmp)%4000;
+											// si le resultat est bon on libère les tables
+											resultMalicious[id] = -1;
+											//et on ajoute l'id a la stack
+											idDataLibre.push(id);
+											System.out.println("Id "+id+" libéré");
+
+										} else {
+
+											//on sauvegarde le resultat pour le prochain serveur
+											resultMalicious[id] = resTmp;
+											//on relance la data
+											idDataToSend.push(id);
+											System.out.println("Renvoi");
+										}
+									} else {
+										//on sauvegarde le resultat pour le prochain serveur
+										resultMalicious[id] = resTmp;
+									}
+								}
+									
 							}
 						} catch (Exception e) {
+							e.printStackTrace();
 							//on relance les datas du serveur down
-
-
-
+							idDataToSend.push(id);
 							//on sauvegarde que le serveur est down
 							serveurCrashe[i] = true;
 						}
 					}
+				
 
 
-				}
+				
 			}
 			long end = System.nanoTime();
 			System.out.println("Temps écoulé appel normal: " + (end - start)
@@ -274,13 +289,6 @@ public class Repartiteur {
 		}
 	}
 
-	private int findFreeDataId() {
-		if(!idDataLibre.isEmpty()){
-			//on renvoi le prochain id libre
-			return (int) idDataLibre.pop();
-		}
-		return dataEnvoye.size();
-	}
 
 	private ServerInterface loadServerStub(String hostname) {
 		ServerInterface stub = null;
