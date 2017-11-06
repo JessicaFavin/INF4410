@@ -28,11 +28,14 @@ public class Repartiteur {
 	private int[] capaciteServeur;
 	private ArrayList<String>[] dataEnvoye;
 	private boolean[] serveurCrashe;
+	private int[][] resultMalicious;
+	private Stack<Integer> idDataLibre;
+
 
 	public Repartiteur(String nom, boolean secure, String serveurFichier){
 		super();
 		try{
-	
+
 			estSecurise = secure;
 			listeOperations = new Stack<String>();
 			File op = new File(nom);
@@ -53,8 +56,10 @@ public class Repartiteur {
 				listeServeur = new ServerInterface[nServeur];
 				capaciteServeur = new int[nServeur];
 				dataEnvoye = new ArrayList[nServeur];
+				resultMalicious = new int[nServeur];
 				for(int i=0; i<nServeur; i++){
 					dataEnvoye[i] = new ArrayList<String>();
+					resultMalicious[i] = new int[2];
 				}
 				serveurCrashe = new boolean[nServeur];
 				for(int i = 0; i<nServeur; i ++){
@@ -62,7 +67,7 @@ public class Repartiteur {
 						String[] part = br.readLine().split(" ");
 						capaciteServeur[i] = Integer.parseInt(part[0]);
 						listeServeur[i] = loadServerStub(part[1]);
-					}	
+					}
 					else{
 						String[] part = br.readLine().split(" ");
 						capaciteServeur[i] = Integer.parseInt(part[0]);
@@ -72,8 +77,8 @@ public class Repartiteur {
 						System.setSecurityManager(new SecurityManager());
 					}
 
-					
-						
+
+
 				}
 				br.close();
 				if(estSecurise)
@@ -98,8 +103,8 @@ public class Repartiteur {
 					int dataSize = Math.min(capaciteServeur[i], listeOperations.size());
 					if(!serveurCrashe[i] && (future[i] == null || future[i].isDone()))
 					{
-						//demande de calcul
 						try {
+							//demande de calcul
 							if(listeServeur[i].demandeCalcul(dataSize)){
 								capaciteServeur[i]++;
 								// création des sous instructions
@@ -117,7 +122,7 @@ public class Repartiteur {
 								//else diminuer la datasize
 								capaciteServeur[i]--;
 							}
-							
+
 							//recupération du résultat
 							if(future[i] != null){
 								res = (res+(Integer)future[i].get())%4000;
@@ -132,10 +137,10 @@ public class Repartiteur {
 							}
 							serveurCrashe[i] = true;
 						}
-						
+
 					}
 
-					
+
 				}
 			}
 			long end = System.nanoTime();
@@ -147,80 +152,116 @@ public class Repartiteur {
 			e.printStackTrace();
 		}
 	}
-	
+
 	public void lancerPasSecure(){
 		try{
 			int id = 0;
 			int res = 0;
+			int idDataToSend = -1;
 			ExecutorService executor = Executors.newFixedThreadPool(nServeur);
 			Future<Integer>[] future = new Future[nServeur];
 			long start = System.nanoTime();
 			int[] dataID = new int[nServeur];
+			idDataLibre = new Stack<Integer>();
 			while(!listeOperations.empty()){
-				
-				
+
+
 				for(int i=0; i<listeServeur.length; i++){
 					int dataSize = Math.min(capaciteServeur[i], listeOperations.size());
-					String[] data = new String[dataSize];
-					for(int j=0; j<dataSize; j++){
-						data[j] = listeOperations.pop();
-					}
-					
-					
-					
-					if(future[i] == null || future[i].isDone())
-					{
-						
 
-						//demande de calcul
-						if(listeServeur[i].demandeCalcul(dataSize)){
-							capaciteServeur[i]++;
-							// création des sous instructions
-							
-							
-							
-							//recherche un 2e serveur
-							boolean nonEnvoye = true;
-							while(nonEnvoye){
-								for(int j=0; j<listeServeur.length; j++){
-									
-									if(i!=j && (future[j] == null || future[j].isDone())){
-										if(listeServeur[j].demandeCalcul(dataSize)){
-											capaciteServeur[j]++;
-											//lancement du thread de calcul
-											Calcul thread = new Calcul(listeServeur[i], data);
-											future[i] = executor.submit(thread);
-											thread = new Calcul(listeServeur[j], data);
-											future[j] = executor.submit(thread);
-											nonEnvoye = false;
-											dataID[i] = id;
-											dataID[j] = id;
-										} else {
-											//else diminuer la datasize
-											capaciteServeur[j]--;
-										}
-										
-									
+					if(!serveurCrashe[i] && (future[i] == null || future[i].isDone())){
+						try{
+							//demande de calcul
+							if(listeServeur[i].demandeCalcul(dataSize)){
+								capaciteServeur[i]++;
+
+								//s'il n'y a pas de double de data à envoyer
+								if(idDataToSend==-1){
+									// création des sous instructions
+									String[] data = new String[dataSize];
+									for(int j=0; j<dataSize; j++){
+										data[j] = listeOperations.pop();
 									}
+									//lancement du thread de calcul
+									Calcul thread = new Calcul(listeServeur[i], data);
+									future[i] = executor.submit(thread);
+									//find id for data
+									id = findFreeDataId();
+									dataEnvoye[id] = new ArrayList<String>();
+									//sauvegarde des datas envoyées à l'id libre trouvé
+									for(int j=0; j<capaciteServeur[i]; j++){
+										dataEnvoye[id].add(data[j]);
+									}
+									//sauvegarde l'id pour qu'il soit envoyé à un autre serveur
+									idDataToSend = id;
+									dataID[i] = id;
+								} else {
+									dataID[i] = idDataToSend;
+									//send the data found in dataEnvoye[idDataToSend]
+									String[] data = new String[dataEnvoye[idDataToSend].size()];
+									data = dataEnvoye[idDataToSend].toArray(data);
+									//lancement du thread de calcul
+									Calcul thread = new Calcul(listeServeur[i], data);
+									future[i] = executor.submit(thread);
+									//ne pas renvoyer la data
+									idDataToSend = -1;
 								}
+							} else {
+								//else diminuer la datasize
+								capaciteServeur[i]--;
 							}
-						} else {
-							//else diminuer la datasize
-							capaciteServeur[i]--;
-						}
-						
+							//recupération du résultat
+							if(future[i] != null){
+								resTmp = (Integer)future[i].get()
 
-						
+								future[i] = null;
+								//on récupère l'idData associée au serveur
+								id = dataID[i];
+								//on compare le résultat à celui ou ceux de la table resultMalicious
+								if(resultMalicious[id][0]!=-1){
+									if(resultMalicious[id][0]==res){
+										res = (res+resTmp)%4000;
+										// si le resultat est bon on libère les tables
+										//et on ajoute l'id a la stack
+									} else {
+										if(resultMalicious[id][1]!=-1){
+											if(resultMalicious[id][1]==res){
+												res = (res+resTmp)%4000;
+												// si le resultat est bon on libère les tables
+												//et on ajoute l'id a la stack
+											} else {
+												//aucune valeur n'est égale, on en remplace une au hasard
+												Random random = new Random();
+												boolean out = random.nextBoolean();
+												if(out)
+													resultMalicious[id][1] = res;
+												else
+													resultMalicious[id][0] = res;
+											}
+										} else {
+											//on sauvegarde le resultat pour le prochain serveur
+											resultMalicious[id][1] = res;
+										}
+									}
+								} else {
+									//on sauvegarde le resultat pour le prochain serveur
+									resultMalicious[id][0] = res;
+								}
 
-						//recupération du résultat
-						if(future[i] != null){
-							
-							res = (res+(Integer)future[i].get())%4000;
-							future[i] = null;
+
+
+							}
+						} catch (Exception e) {
+							//on relance les datas du serveur down
+
+
+
+							//on sauvegarde que le serveur est down
+							serveurCrashe[i] = true;
 						}
 					}
 
-					
+
 				}
 			}
 			long end = System.nanoTime();
@@ -231,6 +272,14 @@ public class Repartiteur {
 		} catch(Exception e) {
 			e.printStackTrace();
 		}
+	}
+
+	private int findFreeDataId() {
+		if(!idDataLibre.isEmpty()){
+			//on renvoi le prochain id libre
+			return (int) idDataLibre.pop();
+		}
+		return dataEnvoye.size();
 	}
 
 	private ServerInterface loadServerStub(String hostname) {
@@ -259,9 +308,9 @@ public class Repartiteur {
 		} else {
 			System.out.println("./Repartiteur nomDuFichier modeSecure (true ou false) serveurFichier");
 		}
-		
 
-		
+
+
 	}
 
 	public class Calcul implements Callable<Integer> {
@@ -286,4 +335,3 @@ public class Repartiteur {
 	}
 
 }
-
