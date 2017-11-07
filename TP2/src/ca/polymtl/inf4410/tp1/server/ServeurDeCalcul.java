@@ -35,9 +35,9 @@ public class ServeurDeCalcul implements ServerInterface {
 
 		try {
 			ServerInterface stub = (ServerInterface) UnicastRemoteObject
-					.exportObject(this, 5037);
+					.exportObject(this, 5010);
 
-			Registry registry = LocateRegistry.getRegistry();
+			Registry registry = LocateRegistry.getRegistry(5005);
 			registry.rebind("server", stub);
 			System.out.println("Server ready.");
 		} catch (ConnectException e) {
@@ -72,10 +72,10 @@ public class ServeurDeCalcul implements ServerInterface {
 			String[] part = ins.split(" ");
 			switch(part[0]){
 				case "prime" :
-					res += Operations.prime(Integer.parseInt(part[1]));
+					res = res + (Operations.prime(Integer.parseInt(part[1]))%4000);
 				break;
 				case "pell" :
-					res += Operations.pell(Integer.parseInt(part[1]));
+					res = res + (Operations.pell(Integer.parseInt(part[1]))%4000);
 				break;
 			}
 			res = res%4000;

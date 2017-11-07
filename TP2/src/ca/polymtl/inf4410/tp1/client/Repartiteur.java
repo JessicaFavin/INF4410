@@ -30,6 +30,7 @@ public class Repartiteur {
 	private ArrayList<String>[] dataEnvoye;
 	private boolean[] serveurCrashe;
 	private int[] resultMalicious;
+	private boolean[] isAdd;
 	private Stack<Integer> idDataLibre;
 
 
@@ -58,10 +59,13 @@ public class Repartiteur {
 				capaciteServeur = new int[nServeur];
 				dataEnvoye = new ArrayList[nServeur];
 				resultMalicious = new int[nServeur];
+				isAdd = new boolean[nServeur];
 				for(int i=0; i<nServeur; i++){
 					dataEnvoye[i] = new ArrayList<String>();
 					resultMalicious[i] = -1;
+					isAdd[i] = true;
 				}
+
 				serveurCrashe = new boolean[nServeur];
 				for(int i = 0; i<nServeur; i ++){
 					if(estSecurise){
@@ -99,40 +103,46 @@ public class Repartiteur {
 			ExecutorService executor = Executors.newFixedThreadPool(nServeur);
 			Future<Integer>[] future = new Future[nServeur];
 			long start = System.nanoTime();
+			boolean premierTour = true;
+			
 			while(!listeOperations.empty()){
 				for(int i=0; i<listeServeur.length; i++){
 					int dataSize = Math.min(capaciteServeur[i], listeOperations.size());
-					if(!serveurCrashe[i] && (future[i] == null || future[i].isDone()))
-					{
+					if(!serveurCrashe[i]){
 						try {
-							//demande de calcul
-							if(listeServeur[i].demandeCalcul(dataSize)){
-								capaciteServeur[i]++;
-								// création des sous instructions
-								String[] data = new String[dataSize];
-								for(int j=0; j<dataSize; j++){
-									data[j] = listeOperations.pop();
+							//si le serveur a fini ses calculs
+							if(isAdd[i]){
+								//demande de calcul
+								if(listeServeur[i].demandeCalcul(dataSize)){
+									System.out.println("Calcul serveur "+i);
+									// création des sous instructions
+									isAdd[i] = false;
+									String[] data = new String[dataSize];
+									dataEnvoye[i].clear();
+									for(int j=0; j<dataSize; j++){
+										data[j] = listeOperations.pop();
+										//sauvegarde de la data en cas de panne
+										dataEnvoye[i].add(data[j]);
+									}
+									//lancement du thread de calcul
+									Calcul thread = new Calcul(listeServeur[i], data);
+									future[i] = executor.submit(thread);
+									
+									capaciteServeur[i]++;
+								} else {
+									//else diminuer la datasize
+									capaciteServeur[i]--;
 								}
 								
-								for(int j=0; j<dataEnvoye[i].size(); j++){
-									dataEnvoye[i].add(data[j]);
-								}
-								System.out.println("Envoi "+i+" "+ dataSize);
-								//lancement du thread de calcul
-								Calcul thread = new Calcul(listeServeur[i], data);
-								future[i] = executor.submit(thread);
-							} else {
-								//else diminuer la datasize
-								capaciteServeur[i]--;
 							}
-
 							//recupération du résultat
-							if(future[i] != null){
+							if(future[i].isDone() && !isAdd[i]){
 								res = (res+(Integer)future[i].get())%4000;
-								future[i] = null;
-								System.out.println("Resultat "+i);
-							}
+								isAdd[i] = true;
+							} 
+							
 						} catch (Exception e) {
+							//e.printStackTrace();
 							//on rempile les datas qui tournaient lors du crash
 							if(!dataEnvoye[i].isEmpty()){
 								for(int j=0; j<dataEnvoye[i].size(); j++){
@@ -146,6 +156,13 @@ public class Repartiteur {
 
 
 				}
+				if(premierTour)
+					premierTour = false;
+			}
+			
+			for(int i=0; i<listeServeur.length; i++){
+				if(!serveurCrashe[i])
+					res = (res+(Integer)future[i].get())%4000;
 			}
 			long end = System.nanoTime();
 			System.out.println("Temps écoulé appel normal: " + (end - start)
@@ -158,7 +175,7 @@ public class Repartiteur {
 	}
 
 	public void lancerPasSecure(){
-		try{
+		//try{
 			int id = 0;
 			int res = 0;
 			Stack<Integer> idDataToSend = new Stack<Integer>();
@@ -234,7 +251,7 @@ public class Repartiteur {
 
 
 								//recupération du résultat
-								if(future[i] != null){
+								if(future[i].isDone()){
 									Integer resTmp = (Integer)future[i].get()%4000;
 
 									future[i] = null;
@@ -284,9 +301,9 @@ public class Repartiteur {
 				+ " ns");
 			System.out.println("Resultat: "+res);
 			System.exit(1);
-		} catch(Exception e) {
+		/*} catch(Exception e) {
 			e.printStackTrace();
-		}
+		}*/
 	}
 
 
@@ -294,15 +311,17 @@ public class Repartiteur {
 		ServerInterface stub = null;
 
 		try {
-			Registry registry = LocateRegistry.getRegistry(hostname);
+			Registry registry = LocateRegistry.getRegistry(hostname, 5005);
 			stub = (ServerInterface) registry.lookup("server");
 		} catch (NotBoundException e) {
 			System.out.println("Erreur: Le nom '" + e.getMessage()
 					+ "' n'est pas défini dans le registre.");
 		} catch (AccessException e) {
 			System.out.println("Erreur: " + e.getMessage());
+			e.printStackTrace();
 		} catch (RemoteException e) {
 			System.out.println("Erreur: " + e.getMessage());
+			e.printStackTrace();
 		}
 
 		return stub;
@@ -331,12 +350,13 @@ public class Repartiteur {
 			data = d;
 		}
 
-		public Integer call(){
+		public Integer call() throws Exception{
 			Integer res = -1;
 			try {
 				res = (Integer)server.calcul(data);
 			} catch(Exception e) {
-				e.printStackTrace();
+				//e.printStackTrace();
+				throw new Exception();
 			}
 			return res;
 		}
