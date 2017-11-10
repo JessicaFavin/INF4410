@@ -175,6 +175,7 @@ public class Repartiteur {
 			int id = 0;
 			int res = 0;
 			Stack<Integer> idDataToSend = new Stack<Integer>();
+			Stack<Integer> idServerAsking = new Stack<Integer>();
 			ExecutorService executor = Executors.newFixedThreadPool(nServeur);
 			Future<Integer>[] future = new Future[nServeur];
 			long start = System.nanoTime();
@@ -220,22 +221,30 @@ public class Repartiteur {
 										}
 										//sauvegarde l'id pour qu'il soit envoyé à un autre serveur
 										idDataToSend.push(id);
+										idServerAsking.push(i);
 										dataID[i] = id;
 										//System.out.println("Data envoyée : "+id+" serveur "+i);
 										//lancement du thread de calcul
 										Calcul thread = new Calcul(listeServeur[i], data);
 										future[i] = executor.submit(thread);
 									} else {
-										id = idDataToSend.pop();
-										dataID[i] = id;
-										//send the data found in dataEnvoye[id]
-										isSaved[i] = false;
-										String[] data = new String[dataEnvoye[id].size()];
-										data = dataEnvoye[id].toArray(data);
-										//lancement du thread de calcul
-										Calcul thread = new Calcul(listeServeur[i], data);
-										future[i] = executor.submit(thread);
-										//System.out.println("Data envoyée 2e round : "+id+" serveur "+i);
+										int serverAsking = idServerAsking.pop();
+										//on verifie qu'on ne renvoi pas au même serveur les donnees
+										if(i!=serverAsking){
+											id = idDataToSend.pop();
+											dataID[i] = id;
+											//send the data found in dataEnvoye[id]
+											isSaved[i] = false;
+											String[] data = new String[dataEnvoye[id].size()];
+											data = dataEnvoye[id].toArray(data);
+											//lancement du thread de calcul
+											Calcul thread = new Calcul(listeServeur[i], data);
+											future[i] = executor.submit(thread);
+											//System.out.println("Data envoyée 2e round : "+id+" serveur "+i);
+										} else {
+											idServerAsking.push(serverAsking);
+										}
+										
 									}
 									//capaciteServeur[i]++;
 								} else {
@@ -251,7 +260,7 @@ public class Repartiteur {
 								id = dataID[i];
 								//on compare le résultat à celui ou ceux de la table resultMalicious
 								if(resultMalicious[id]!=-1){
-									//System.out.println(resultMalicious[id]+" "+resTmp);
+									System.out.println(resultMalicious[id]+" "+resTmp);
 									if(resultMalicious[id]==resTmp){
 										isAdd[id] = true;
 										res = (res+resTmp)%4000;
@@ -265,6 +274,7 @@ public class Repartiteur {
 										//on sauvegarde le resultat pour le prochain serveur
 										resultMalicious[id] = resTmp;										//on relance la data
 										idDataToSend.push(id);
+										idServerAsking.push(i);
 										//System.out.println("Renvoi");
 									}
 								} else {
@@ -289,67 +299,81 @@ public class Repartiteur {
 			System.out.println("Fin premiere boucle");
 			//sauvegarde des résultats finaux
 			boolean allAdded = false;
-			while(!allAdded()){
+			while(!allAdded){
 				//System.out.println(isAdd[0]+" "+isAdd[1]+" "+isAdd[2]+" "+isAdd[3]);
 				//System.out.print(allAdded()+" ");
 				for(int i=0; i<listeServeur.length; i++){
 
 					//if(!isAdd[dataID[i]]){
-					//	System.out.println(isAdd[dataID[0]]+" "+isAdd[dataID[1]]+" "+isAdd[dataID[2]]+" "+isAdd[dataID[3]]);}
+						//System.out.println(isAdd[dataID[0]]+" "+isAdd[dataID[1]]+" "+isAdd[dataID[2]]+" "+isAdd[dataID[3]]);
 
 					if(!serveurCrashe[i]){
-						//on ne fait que renvoyer les mauvais résultats
-						//demande de calcul
-						if(!idDataToSend.empty() && listeServeur[i].demandeCalcul(dataEnvoye[id].size())){
-							id = idDataToSend.pop();
-							dataID[i] = id;
-							isAdd[id] = false;
-							//send the data found in dataEnvoye[id]
-							String[] data = new String[dataEnvoye[id].size()];
-							data = dataEnvoye[id].toArray(data);
-							//lancement du thread de calcul
-							Calcul thread = new Calcul(listeServeur[i], data);
-							future[i] = executor.submit(thread);
-							//System.out.println("Data envoyée 2e round : "+id+" serveur "+i);
-							//capaciteServeur[i]++;
-						} else {
-							//else diminuer la datasize
-							//capaciteServeur[i]--;
+						//si le serveur a fini ses calculs et le résultat a été sauvegardé
+						if(isSaved[i]){
+							//on ne fait que renvoyer les mauvais résultats
+							//demande de calcul
+							if(!idDataToSend.empty()){
+								int serverAsking = idServerAsking.pop();
+								if(i!=serverAsking){
+									if(listeServeur[i].demandeCalcul(dataEnvoye[id].size())){
+										id = idDataToSend.pop();
+										dataID[i] = id;
+										isAdd[id] = false;
+										isSaved[i] = false;
+										//send the data found in dataEnvoye[id]
+										String[] data = new String[dataEnvoye[id].size()];
+										data = dataEnvoye[id].toArray(data);
+										//lancement du thread de calcul
+										Calcul thread = new Calcul(listeServeur[i], data);
+										future[i] = executor.submit(thread);
+										//System.out.println("Data envoyée 2e round : "+id+" serveur "+i);
+										//capaciteServeur[i]++;
+									} else {
+										//else diminuer la datasize
+										//capaciteServeur[i]--;
+									}
+								} else {
+									idServerAsking.push(serverAsking);
+								}
+							}
 						}
+						
 
 						
-						//System.out.print(isAdd[dataID[i]]+" ");
+						
 						
 						//recupération du résultat
-						if(!isAdd[dataID[i]] && future[i].isDone()){
+						if(!isSaved[i] && future[i].isDone()){
+							System.out.println(" Serveur : " + i);
 							Integer resTmp = (Integer)future[i].get()%4000;
 							//on récupère l'idData associée au serveur
 							id = dataID[i];
 							//on compare le résultat à celui ou ceux de la table resultMalicious
 							if(resultMalicious[id]!=-1){
-								System.out.println(isAdd[0]+" "+isAdd[1]+" "+isAdd[2]+" "+isAdd[3]);
+								//System.out.println(isAdd[0]+" "+isAdd[1]+" "+isAdd[2]+" "+isAdd[3]);
 								System.out.println(resultMalicious[id]+" "+resTmp);
 								if(resultMalicious[id]==resTmp){
 									System.out.println(resTmp);
 									res = (res+resTmp)%4000;
 									isAdd[id] = true;
-									System.out.println(isAdd[0]+" "+isAdd[1]+" "+isAdd[2]+" "+isAdd[3]);
 									// si le resultat est bon on libère les tables
 									resultMalicious[id] = -1;
 									//et on ajoute l'id a la stack
 									idDataLibre.push(id);
-									//System.out.println("Id "+id+" libéré");
+									System.out.println("Id "+id+" libéré");
 								} else {
 									//on sauvegarde le resultat pour le prochain serveur
 									resultMalicious[id] = resTmp;
 									//on relance la data
 									idDataToSend.push(id);
-									//System.out.println("Renvoi");
+									idServerAsking.push(i);
+									System.out.println("Renvoi id "+id);
 								}
 							} else {
 								//on sauvegarde le resultat pour le prochain serveur
 								resultMalicious[id] = resTmp;
 							}
+							isSaved[i] = true;
 						}
 					}
 				}
