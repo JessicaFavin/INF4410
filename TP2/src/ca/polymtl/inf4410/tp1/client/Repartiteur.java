@@ -223,7 +223,6 @@ public class Repartiteur {
 										idDataToSend.push(id);
 										idServerAsking.push(i);
 										dataID[i] = id;
-										//System.out.println("Data envoyée : "+id+" serveur "+i);
 										//lancement du thread de calcul
 										Calcul thread = new Calcul(listeServeur[i], data);
 										future[i] = executor.submit(thread);
@@ -240,16 +239,15 @@ public class Repartiteur {
 											//lancement du thread de calcul
 											Calcul thread = new Calcul(listeServeur[i], data);
 											future[i] = executor.submit(thread);
-											//System.out.println("Data envoyée 2e round : "+id+" serveur "+i);
 										} else {
 											idServerAsking.push(serverAsking);
 										}
 										
 									}
-									//capaciteServeur[i]++;
+									capaciteServeur[i]++;
 								} else {
 									//else diminuer la datasize
-									//capaciteServeur[i]--;
+									capaciteServeur[i]--;
 								}
 							}
 							//recupération du résultat
@@ -269,13 +267,12 @@ public class Repartiteur {
 										resultMalicious[id] = -1;
 										//et on ajoute l'id a la stack
 										idDataLibre.push(id);
-										//System.out.println("Id "+id+" libéré");
 									} else {
 										//on sauvegarde le resultat pour le prochain serveur
-										resultMalicious[id] = resTmp;										//on relance la data
+										resultMalicious[id] = resTmp;										
+										//on relance la data
 										idDataToSend.push(id);
 										idServerAsking.push(i);
-										//System.out.println("Renvoi");
 									}
 								} else {
 									//on sauvegarde le resultat pour le prochain serveur
@@ -300,18 +297,15 @@ public class Repartiteur {
 			//sauvegarde des résultats finaux
 			boolean allAdded = false;
 			while(!allAdded){
-				//System.out.println(isAdd[0]+" "+isAdd[1]+" "+isAdd[2]+" "+isAdd[3]);
-				//System.out.print(allAdded()+" ");
 				for(int i=0; i<listeServeur.length; i++){
 
-					//if(!isAdd[dataID[i]]){
-						//System.out.println(isAdd[dataID[0]]+" "+isAdd[dataID[1]]+" "+isAdd[dataID[2]]+" "+isAdd[dataID[3]]);
 
 					if(!serveurCrashe[i]){
 						//si le serveur a fini ses calculs et le résultat a été sauvegardé
 						if(isSaved[i]){
 							//on ne fait que renvoyer les mauvais résultats
 							//demande de calcul
+							
 							if(!idDataToSend.empty()){
 								int serverAsking = idServerAsking.pop();
 								if(i!=serverAsking){
@@ -326,11 +320,11 @@ public class Repartiteur {
 										//lancement du thread de calcul
 										Calcul thread = new Calcul(listeServeur[i], data);
 										future[i] = executor.submit(thread);
-										//System.out.println("Data envoyée 2e round : "+id+" serveur "+i);
-										//capaciteServeur[i]++;
+										capaciteServeur[i]++;
 									} else {
 										//else diminuer la datasize
-										//capaciteServeur[i]--;
+										capaciteServeur[i]--;
+										idServerAsking.push(serverAsking);
 									}
 								} else {
 									idServerAsking.push(serverAsking);
