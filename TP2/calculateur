@@ -1,0 +1,11 @@
+#!/bin/bash
+
+if [ $# -eq 2 ]
+then
+	capacity_max=$1
+	malicious_percentage=$2
+
+	./server $capacity_max $malicious_percentage
+else
+	echo "./calculateur capacity_max malicious_percentage"
+fi

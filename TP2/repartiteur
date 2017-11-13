@@ -1,0 +1,13 @@
+#!/bin/bash
+
+if [ $# -eq 3 ]
+then
+	operation_file=$1
+	mode_secure=$2
+	server_file=$3
+
+	./client $operation_file $mode_secure $server_file
+else
+	echo "./repartiteur operation_file mode_secure server_file"
+	echo "mode_secure value is either true or false"
+fi
