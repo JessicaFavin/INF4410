@@ -42,4 +42,4 @@ resources:
 outputs:
   server_networks:
     description: The networks of the deployed server
-    value: { get_attr: [server_nodes, networks] }
+    value: { get_attr: [server, networks] }

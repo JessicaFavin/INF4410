@@ -13,15 +13,22 @@ parameters:
     description: Flavor utilisee par les serveurs
     default: INF4410-mini
 
-  subnet_id:
+  mynetwork:
     type: string
-    description: Sous-reseau dans lequel le load balancer sera situe
+    description: Réseau
     default: inf4410-net
 
   mykey:
     type: string
     description: Clé ssh
     default: serverkey
+
+  subnet_id:
+    type: string
+    description: Sous-reseau dans lequel le load balancer sera situe
+    default: 6579eb07-88c3-4707-9c6e-ab90a78cca02
+
+
 
 resources:
   server_nodes:
@@ -32,7 +39,7 @@ resources:
           type: OS::Nova::Server
           properties:
             key_name: { get_param: mykey }
-            networks: [{network: {get_param: subnet_id}}]
+            networks: [{network: {get_param: mynetwork}}]
             image: { get_param: image }
             flavor: { get_param: flavor }
             user_data_format: RAW
@@ -47,7 +54,7 @@ resources:
         lb_method: ROUND_ROBIN
         protocol: HTTP
         monitors: [{get_resource: monitor}]
-        subnet: 8cf53e58-0e1d-402a-bdd9-2f970064ccbd
+        subnet: { get_param: subnet_id }
         vip: {"protocol_port": 8000}
 
   loadbalancer:
