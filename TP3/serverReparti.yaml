@@ -1,0 +1,71 @@
+heat_template_version: 2014-10-16
+
+description: Un système reparti
+
+parameters:
+  image:
+    type: string
+    description: Image utilisee pour les serveurs
+    default: INF4410-Ubuntu-trusty-mini
+
+  flavor:
+    type: string
+    description: Flavor utilisee par les serveurs
+    default: INF4410-mini
+
+  subnet_id:
+    type: string
+    description: Sous-reseau dans lequel le load balancer sera situe
+    default: inf4410-net
+
+  mykey:
+    type: string
+    description: Clé ssh
+    default: serverkey
+
+resources:
+  server_nodes:
+      type: OS::Heat::ResourceGroup
+      properties:
+        count: 2
+        resource_def:
+          type: OS::Nova::Server
+          properties:
+            key_name: { get_param: mykey }
+            networks: [{network: {get_param: subnet_id}}]
+            image: { get_param: image }
+            flavor: { get_param: flavor }
+            user_data_format: RAW
+            user_data: |
+                  #!/bin/bash
+                  curl -O https://raw.githubusercontent.com/houssemmh/INF4410-TP3/master/server.py
+                  python server.py 
+
+  mypool:
+      type: OS::Neutron::Pool
+      properties:
+        lb_method: ROUND_ROBIN
+        protocol: HTTP
+        monitors: [{get_resource: monitor}]
+        subnet: 8cf53e58-0e1d-402a-bdd9-2f970064ccbd
+        vip: {"protocol_port": 8000}
+
+  loadbalancer:
+    type: OS::Neutron::LoadBalancer
+    properties:
+      members: {get_attr: [server_nodes, refs]}
+      pool_id: {get_resource: mypool}
+      protocol_port: 8000
+
+  monitor:
+      type: OS::Neutron::HealthMonitor
+      properties:
+        type: TCP
+        delay: 8
+        max_retries: 1
+        timeout: 5
+
+outputs:
+  pool_ip_address:
+    value: {get_attr: [mypool, vip, address]}
+    description: The IP address of the load balancing pool
