@@ -69,7 +69,7 @@ resources:
       properties:
         type: TCP
         delay: 8
-        max_retries: 1
+        max_retries: 2
         timeout: 5
 
 outputs:
